@@ -1,0 +1,380 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+### Best Subset Selection 
+
+
+```{r}
+library(ISLR)
+fix(Hitters)
+```
+
+
+```{r}
+names(Hitters)
+```
+
+```{r}
+dim(Hitters)
+```
+
+```{r}
+str(Hitters)
+```
+
+Does the dataset have missing values?
+```{r}
+sum(is.na(Hitters))
+```
+
+
+Remove any records that contain missing values
+```{r}
+Hitters = na.omit(Hitters)
+```
+
+Review dimension of the dataset to make sure we removed records with missing values
+```{r}
+dim(Hitters)
+```
+
+Doublecheck for missing values
+```{r}
+sum(is.na(Hitters))
+```
+
+Perfom best subset selection with the leaps library. 
+the regsubsets() function uses RSS to select the "best" model
+```{r}
+library(leaps)
+```
+
+
+```{r}
+regfit.full = regsubsets(Salary~., data = Hitters)
+```
+
+By default, regsubsets() will only report results up to the best 8 variable model.
+```{r}
+summary(regfit.full)
+```
+
+The nvmax option allows the user to override the 8 variable default and include as many variables as the user specifies
+```{r}
+regfit.full = regsubsets(Salary~., data = Hitters, nvmax = 19)
+```
+
+```{r}
+summary(regfit.full)
+```
+
+We can store our summary as a variable
+```{r}
+reg.summary = summary(regfit.full)
+```
+
+Display the selection criteria options that are available
+```{r}
+names(reg.summary)
+```
+
+We are able to review the r-squared for all 19 variables 
+```{r}
+reg.summary$rsq
+```
+
+What is the highest r-square we find across all 19 models?
+Remember! The more variables we add to the model, the more we inflate the r-squared statistic! 
+```{r}
+print(max(reg.summary$rsq))
+```
+
+
+```{r}
+plot(reg.summary$rss, xlab = "Number of Variables", ylab = "Rss",
+     type = 'l')
+```
+
+
+Which model has our highest Adjusted R-Squared?
+```{r}
+which.max(reg.summary$adjr2)
+```
+
+Plot the Adjusted R-Squared scores for all our models, and highlight the model we found to have the highest Adjusted R-Squared.
+```{r}
+plot(reg.summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type="l")
+points(11, reg.summary$adjr2[11], col='red', cex = 2, pch = 20)
+
+```
+
+We can also plot Cp and BIC statistics and highlight the minnimum scores for each
+```{r}
+minCp <- which.min(reg.summary$cp)
+minCp
+
+```
+
+
+```{r}
+plot(reg.summary$cp, xlab = "Number of Variables", ylab = "Cp", type = 'l')
+points(minCp, reg.summary$cp[minCp], col = 'red', cex = 2, pch = 20)
+
+```
+
+
+```{r}
+minBIC = which.min(reg.summary$bic)
+minBIC
+```
+
+```{r}
+plot(reg.summary$bic, xlab = "Number of Variables", ylab = "BIC", type = 'l' )
+points(minBIC, reg.summary$bic[minBIC], col = 'red', cex = 2, pch = 20)
+```
+
+regsubsets() function has a built-in plot() command that will display the selected variables for the best model with a given number of predictors.
+```{r}
+plot(regfit.full, scale = "r2")
+```
+
+Earlier we determined that the model with the best (highest) Adjusted R-Squared contained 11 variables. 
+Let's doublecheck that! Notice our new Adjusted R-Squared plot shows that a model with 11 variables has the highest Adjr2 statistic. 
+```{r}
+plot(regfit.full, scale = "adjr2")
+```
+
+Doublecheck Cp
+```{r}
+plot(regfit.full, scale = "Cp")
+```
+
+Doublecheck BIC
+```{r}
+plot(regfit.full, scale = "bic")
+```
+
+Suppose we decide to use BIC as out selection critera. 
+Recall that the model with the lowest BIC was model #6
+```{r}
+minBIC
+```
+
+Show thevariables and the coefficient estimates associated with this model.
+```{r}
+coef(regfit.full,6)
+```
+
+
+### Forward and Backward Stepwise Selection 
+
+Forward and Backward Selection can be specified inside of the regsubsets() function.
+method = "forward" or method = "backward"
+
+Forward Selection
+```{r}
+regfit.fwd = regsubsets(Salary~., data = Hitters, nvmax = 19, method = "forward")
+```
+
+```{r}
+summary(regfit.fwd)
+```
+
+Backward Selection
+```{r}
+regfit.bwd = regsubsets(Salary~., data = Hitters, nvmax = 19, method = "backward")
+```
+
+```{r}
+summary(regfit.bwd)
+```
+
+Best Subsets, Forward Selection and Backward Selection all contain identical variables in the first 6 models. The three methods begin to vary when adding a 7th variable to the model
+```{r}
+coef(regfit.full, 7)
+```
+
+```{r}
+coef(regfit.fwd, 7)
+```
+
+```{r}
+coef(regfit.bwd, 7)
+```
+
+### Cross Validation 
+```{r}
+set.seed(1)
+```
+
+training set will be the records marked as TRUE, and test set will be FALSE
+```{r}
+train = sample(x = c(TRUE, FALSE), size = nrow(Hitters), rep = TRUE)
+```
+
+test set consists of all records that are "not equal to true"
+essentially all the falses are flipped to True, and all the Trues are flipped to false
+```{r}
+test = (!train)
+```
+
+apply regsubsets() to the training set. In this example, Best Subset Selection is used
+```{r}
+regfit.best = regsubsets(Salary~., data = Hitters[train,], nvmax = 19)
+```
+
+Compute the validation set error for the best model of each model size
+```{r}
+test.mat = model.matrix(Salary~., data=Hitters[test, ])
+```
+
+```{r}
+val.errors = rep(NA, 19)
+```
+
+```{r}
+for(i in 1:19){
+  
+  coefi = coef(regfit.best, id=i)
+  pred = test.mat[,names(coefi)]%*%coefi
+  val.errors[i] = mean((Hitters$Salary[test]-pred)^2)
+  
+}
+```
+
+```{r}
+val.errors
+```
+
+```{r}
+which.min(val.errors)
+```
+
+```{r}
+coef(regfit.best, 10)
+```
+
+Write a predict() function to help automate best subset
+```{r}
+predict.regsubsets = function(object, newdata, id, ...){
+  form = as.formula(object$call[[2]])
+  mat = model.matrix(form, newdata)
+  coefi = coef(object, id = id)
+  xvars = names(coefi)
+  mat[,xvars]%*%coefi
+}
+```
+
+Now we will perform best subset selection on the full data set, and select the best 10-variable model
+```{r}
+regfit.best = regsubsets(Salary~., data = Hitters, nvmax=19)
+coef(regfit.best, 10)
+```
+
+Now use cross validation to choose among the models
+```{r}
+k = 10
+set.seed(1)
+folds = sample(1:k, nrow(Hitters), replace = TRUE)
+cv.errors = matrix(NA, k, 19, dimnames = list(NULL, paste(1:19)))
+```
+
+```{r}
+for(j in 1:k){
+  best.fit = regsubsets(Salary~., data = Hitters[folds != j,], nvmax = 19)
+  for(i in 1:19){
+    pred = predict(best.fit, Hitters[folds==j,], id=i)
+    cv.errors[j, i] = mean((Hitters$Salary[folds==j]-pred)^2)
+        }
+  }
+```
+
+```{r}
+mean.cv.errors = apply(cv.errors, 2, mean)
+```
+
+```{r}
+mean.cv.errors
+```
+
+
+Cross Validation selects the 11 variable model
+```{r}
+plot(mean.cv.errors, type = 'b')
+```
+
+now perform best subset selection on the full data set in order to obtain the 11-variable model
+```{r}
+reg.best = regsubsets(Salary~., data = Hitters, nvmax = 19)
+coef(reg.best, 11)
+```
+
+### Ridge Regression and Lasso 
+
+```{r}
+x = model.matrix(Salary~., Hitters)[,-1]
+y = Hitters$Salary
+```
+
+alpha=0 for ridge regression
+alpha=1 for lasso model
+```{r}
+library(glmnet)
+```
+
+```{r}
+grid = 10^seq(10,-2, length = 100)
+ridge.mod = glmnet(x, y, alpha = 0, lambda = grid)
+```
+
+```{r}
+dim(coef(ridge.mod))
+```
+
+```{r}
+ridge.mod$lambda[50]
+```
+```{r}
+coef(ridge.mod)[,50]
+```
+
+```{r}
+sqrt(sum(coef(ridge.mod)[-1, 50]^2))
+```
+
+
+```{r}
+ridge.mod$lambda[60]
+```
+
+```{r}
+coef(ridge.mod)[,60]
+```
+
+```{r}
+sqrt(sum(coef(ridge.mod)[-1, 60]^2))
+```
+
+```{r}
+predict(ridge.mod, s=50, type ="coefficients")[1:20,]
+```
+
+# to be continued...  
+
+
+
+
+
+
+
+
+
+
+
